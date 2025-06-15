@@ -1,12 +1,55 @@
 const express = require('express');
 const cors = require('cors');
 const users = require('./user-data');
+const jwt = require("jsonwebtoken");
+const bcrypt = require("bcryptjs");
+const bodyParser = require("body-parser");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.use(cors());
 app.use(express.json());
+app.use(bodyParser.json());
+
+
+const SECRET_KEY = "your_secret_key";
+
+// Simulated user database
+const user = {
+  username: "admin",
+  password: bcrypt.hashSync("admin123", 8), // hashed password
+};
+
+// Login route
+app.post("/api/login", (req, res) => {
+  const { username, password } = req.body;
+  if (username !== user.username || !bcrypt.compareSync(password, user.password)) {
+    return res.status(401).json({ message: "Invalid credentials" });
+  }
+
+  const token = jwt.sign({ username }, SECRET_KEY, { expiresIn: "1h" });
+  res.json({ token });
+});
+
+// Protected route
+app.get("/api/protected", verifyToken, (req, res) => {
+  res.json({ message: "Access granted to protected data" });
+});
+
+function verifyToken(req, res, next) {
+  const bearerHeader = req.headers["authorization"];
+  if (!bearerHeader || !bearerHeader.startsWith("Bearer ")) {
+    return res.sendStatus(403);
+  }
+  const token = bearerHeader.split(" ")[1];
+
+  jwt.verify(token, SECRET_KEY, (err, decoded) => {
+    if (err) return res.sendStatus(403);
+    req.user = decoded;
+    next();
+  });
+}
 
 // GET /api/users?page=1&limit=10&search=rahul
 app.get('/api/users', (req, res) => {
